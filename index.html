@@ -1,0 +1,352 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Checklist Mutuo - Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: '#0ea5e9',
+            accent: '#0f172a',
+          },
+        },
+      },
+    };
+  </script>
+</head>
+<body class="bg-slate-50 text-slate-900">
+  <div class="min-h-screen">
+    <header class="bg-white shadow-sm sticky top-0 z-10">
+      <div class="mx-auto max-w-6xl px-4 py-4 flex items-center justify-between">
+        <div>
+          <p class="text-xs uppercase tracking-wide text-slate-500">Dashboard Mutui</p>
+          <h1 class="text-2xl font-semibold text-slate-900">Checklist documentale dinamica</h1>
+          <p class="text-sm text-slate-600">Seleziona i tag per mostrare solo i documenti pertinenti. Pensata per uso locale e offline.</p>
+        </div>
+        <button id="exportBtn" class="rounded-lg bg-primary px-4 py-2 text-white shadow hover:bg-sky-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary">
+          Esporta Checklist
+        </button>
+      </div>
+    </header>
+
+    <main class="mx-auto max-w-6xl px-4 pb-12 pt-6 grid gap-8 lg:grid-cols-[320px,1fr]">
+      <section class="space-y-6">
+        <div class="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-100">
+          <h2 class="mb-2 text-lg font-semibold text-slate-900">Filtri rapidi</h2>
+          <p class="text-sm text-slate-600">Combina i tag per costruire regole come da prassi bancaria italiana. Le regole speciali (P.IVA, Consap, Surroga, Comunione dei beni) vengono applicate automaticamente.</p>
+        </div>
+
+        <div id="filters" class="space-y-4">
+          <!-- Filtri generati via JS -->
+        </div>
+      </section>
+
+      <section class="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-100">
+        <div class="mb-4 flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h2 class="text-lg font-semibold text-slate-900">Documenti richiesti</h2>
+            <p id="count" class="text-sm text-slate-600"></p>
+          </div>
+          <div class="flex items-center gap-2 text-sm text-slate-600">
+            <span class="inline-flex h-3 w-3 rounded-full bg-primary/80"></span> In evidenza i documenti aggiunti dalla regola selezionata
+          </div>
+        </div>
+
+        <div id="documentList" class="divide-y divide-slate-100"></div>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    const filterConfig = [
+      {
+        id: 'lavoro',
+        label: 'Lavoro',
+        options: [
+          { id: 'dipendente_indeterminato', label: 'Dipendente Indeterminato' },
+          { id: 'dipendente_determinato', label: 'Dipendente Determinato' },
+          { id: 'piva', label: 'P.IVA / Autonomo' },
+          { id: 'libero_professionista', label: 'Libero Professionista' },
+          { id: 'pensionato', label: 'Pensionato' },
+        ],
+      },
+      {
+        id: 'tipo_mutuo',
+        label: 'Tipo Mutuo',
+        options: [
+          { id: 'acquisto', label: 'Acquisto' },
+          { id: 'surroga', label: 'Surroga' },
+          { id: 'ristrutturazione', label: 'Ristrutturazione' },
+          { id: 'consolidamento', label: 'Consolidamento' },
+        ],
+      },
+      {
+        id: 'stato_civile',
+        label: 'Stato Civile',
+        options: [
+          { id: 'celibe', label: 'Celibe/Nubile' },
+          { id: 'coniugato_comunione', label: 'Coniugato (Comunione)' },
+          { id: 'coniugato_separazione', label: 'Coniugato (Separazione)' },
+          { id: 'divorziato', label: 'Divorziato' },
+        ],
+      },
+      {
+        id: 'speciali',
+        label: 'Speciali',
+        options: [
+          { id: 'consap', label: 'Garanzia CONSAP (Giovani)' },
+          { id: 'coobbligato', label: 'Co-obbligato presente' },
+          { id: 'garante', label: 'Garante presente' },
+        ],
+      },
+    ];
+
+    const documents = [
+      { id: 1, name: 'Documento identità richiedente', category: 'Anagrafica', source: 'Cliente', tags: ['base'] },
+      { id: 2, name: 'Codice fiscale richiedente', category: 'Anagrafica', source: 'Cliente', tags: ['base'] },
+      { id: 3, name: 'Documento identità coniuge', category: 'Anagrafica', source: 'Cliente', tags: ['coniugato_comunione', 'coniugato_separazione'] },
+      { id: 4, name: 'Codice fiscale coniuge', category: 'Anagrafica', source: 'Cliente', tags: ['coniugato_comunione', 'coniugato_separazione'] },
+      { id: 5, name: 'Certificato stato civile / estratto matrimonio', category: 'Anagrafica', source: 'Comune/Anagrafe', tags: ['base'] },
+      { id: 6, name: 'Certificato contestuale residenza e stato di famiglia', category: 'Anagrafica', source: 'Comune/Anagrafe', tags: ['base'] },
+      { id: 7, name: 'Permesso di soggiorno', category: 'Anagrafica', source: 'Questura', tags: ['base'] },
+      { id: 8, name: 'Atto di separazione/divorzio', category: 'Anagrafica', source: 'Tribunale', tags: ['divorziato'] },
+      { id: 9, name: 'Sentenza affidamento figli', category: 'Anagrafica', source: 'Tribunale', tags: ['divorziato'] },
+      { id: 10, name: 'Dichiarazione regime patrimoniale', category: 'Anagrafica', source: 'Notaio/Autocertificazione', tags: ['coniugato_comunione', 'coniugato_separazione'] },
+      { id: 11, name: 'Certificato nascita figli', category: 'Anagrafica', source: 'Comune', tags: ['coniugato_comunione', 'coniugato_separazione', 'divorziato'] },
+      { id: 12, name: 'Documento identità garante', category: 'Anagrafica', source: 'Garante', tags: ['garante'] },
+      { id: 13, name: 'Codice fiscale garante', category: 'Anagrafica', source: 'Garante', tags: ['garante'] },
+      { id: 14, name: 'Documento identità co-obbligato', category: 'Anagrafica', source: 'Co-obbligato', tags: ['coobbligato'] },
+      { id: 15, name: 'Codice fiscale co-obbligato', category: 'Anagrafica', source: 'Co-obbligato', tags: ['coobbligato'] },
+      { id: 16, name: 'Informativa privacy firmata', category: 'Compliance', source: 'Banca', tags: ['base'] },
+      { id: 17, name: 'Modulo antiriciclaggio', category: 'Compliance', source: 'Banca', tags: ['base'] },
+      { id: 18, name: 'Modulo anagrafica cliente', category: 'Compliance', source: 'Banca', tags: ['base'] },
+      { id: 19, name: 'Ultime 3 buste paga', category: 'Reddito', source: 'Cliente / Datore di lavoro', tags: ['dipendente_indeterminato', 'dipendente_determinato'] },
+      { id: 20, name: 'CU/Certificazione Unica', category: 'Reddito', source: 'Datore di lavoro', tags: ['dipendente_indeterminato', 'dipendente_determinato'] },
+      { id: 21, name: 'Contratto di lavoro/lettera di assunzione', category: 'Reddito', source: 'Datore di lavoro', tags: ['dipendente_indeterminato', 'dipendente_determinato'] },
+      { id: 22, name: 'Estratto contributivo INPS', category: 'Reddito', source: 'INPS', tags: ['dipendente_indeterminato', 'dipendente_determinato'] },
+      { id: 23, name: 'Attestazione TFR maturato', category: 'Reddito', source: 'Datore di lavoro', tags: ['dipendente_indeterminato'] },
+      { id: 24, name: 'Dichiarazione datore continuità contratto', category: 'Reddito', source: 'Datore di lavoro', tags: ['dipendente_determinato'] },
+      { id: 25, name: 'Comunicazione UNILAV assunzione', category: 'Reddito', source: 'Datore di lavoro', tags: ['dipendente_determinato'] },
+      { id: 26, name: 'Modello 730 ultimo anno', category: 'Reddito', source: 'Cliente / CAF', tags: ['dipendente_indeterminato', 'dipendente_determinato', 'pensionato'] },
+      { id: 27, name: 'Estratti conto ultimi 6 mesi', category: 'Reddito', source: 'Banca', tags: ['base'] },
+      { id: 28, name: 'Cedolino pensione mese corrente', category: 'Reddito', source: 'INPS', tags: ['pensionato'] },
+      { id: 29, name: 'OBIS M aggiornato', category: 'Reddito', source: 'INPS', tags: ['pensionato'] },
+      { id: 30, name: 'Certificazione annuale pensione', category: 'Reddito', source: 'INPS', tags: ['pensionato'] },
+      { id: 31, name: 'Modello UNICO ultimo anno', category: 'Reddito', source: 'Cliente / Commercialista', tags: ['piva', 'libero_professionista'] },
+      { id: 32, name: 'Modello UNICO penultimo anno', category: 'Reddito', source: 'Cliente / Commercialista', tags: ['piva', 'libero_professionista'] },
+      { id: 33, name: 'Attribuzione/partita IVA', category: 'Reddito', source: 'Agenzia Entrate', tags: ['piva', 'libero_professionista'] },
+      { id: 34, name: 'DURC in corso di validità', category: 'Reddito', source: 'INPS/INAIL/Cassa', tags: ['piva', 'libero_professionista'] },
+      { id: 35, name: 'Visura camerale', category: 'Reddito', source: 'Camera di Commercio', tags: ['piva'] },
+      { id: 36, name: 'Fatture/registro corrispettivi ultimi 12 mesi', category: 'Reddito', source: 'Cliente / Commercialista', tags: ['piva', 'libero_professionista'] },
+      { id: 37, name: 'Estratto previdenziale gestione separata o cassa', category: 'Reddito', source: 'INPS/Albo', tags: ['libero_professionista'] },
+      { id: 38, name: 'Polizza RC professionale', category: 'Reddito', source: 'Assicurazione', tags: ['libero_professionista'] },
+      { id: 39, name: 'Dichiarazione redditi coobbligato/garante', category: 'Reddito', source: 'Co-obbligato / Garante', tags: ['coobbligato', 'garante'] },
+      { id: 40, name: 'Proposta di acquisto o preliminare', category: 'Immobile', source: 'Agenzia / Notaio', tags: ['acquisto'] },
+      { id: 41, name: 'Compromesso registrato', category: 'Immobile', source: 'Agenzia Entrate', tags: ['acquisto'] },
+      { id: 42, name: 'Atto di provenienza immobile', category: 'Immobile', source: 'Notaio', tags: ['base'] },
+      { id: 43, name: 'Visura catastale aggiornata', category: 'Immobile', source: 'Catasto', tags: ['base'] },
+      { id: 44, name: 'Planimetria catastale', category: 'Immobile', source: 'Catasto', tags: ['base'] },
+      { id: 45, name: 'APE certificazione energetica', category: 'Immobile', source: 'Tecnico abilitato', tags: ['base'] },
+      { id: 46, name: 'Dichiarazione di conformità urbanistica/abitabilità', category: 'Immobile', source: 'Tecnico abilitato', tags: ['base'] },
+      { id: 47, name: 'Permesso di costruire/concessione edilizia', category: 'Immobile', source: 'Comune', tags: ['base'] },
+      { id: 48, name: 'Relazione tecnica di legittimità', category: 'Immobile', source: 'Tecnico abilitato', tags: ['base'] },
+      { id: 49, name: 'Computo metrico o preventivo lavori (ristrutturazione)', category: 'Immobile', source: 'Impresa / Tecnico', tags: ['ristrutturazione'] },
+      { id: 50, name: 'Fatture o SAL lavori già eseguiti', category: 'Immobile', source: 'Impresa / Tecnico', tags: ['ristrutturazione'] },
+      { id: 51, name: 'Polizza incendio/scoppio', category: 'Mutuo', source: 'Assicurazione', tags: ['base'] },
+      { id: 52, name: 'Perizia estimativa tecnica', category: 'Mutuo', source: 'Perito incaricato', tags: ['base'] },
+      { id: 53, name: 'Atto di mutuo precedente', category: 'Mutuo', source: 'Notaio / Banca originaria', tags: ['surroga'] },
+      { id: 54, name: 'Conteggio estintivo', category: 'Mutuo', source: 'Banca originaria', tags: ['surroga'] },
+      { id: 55, name: 'Modulo richiesta garanzia Consap', category: 'Speciale', source: 'Banca', tags: ['consap'] },
+    ];
+
+    const state = {
+      filters: {
+        lavoro: new Set(),
+        tipo_mutuo: new Set(),
+        stato_civile: new Set(),
+        speciali: new Set(),
+      },
+      completed: new Set(),
+    };
+
+    function renderFilters() {
+      const container = document.getElementById('filters');
+      container.innerHTML = '';
+
+      filterConfig.forEach((group) => {
+        const card = document.createElement('div');
+        card.className = 'rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-100';
+        const title = document.createElement('div');
+        title.className = 'mb-2 flex items-center justify-between gap-2';
+        title.innerHTML = `<h3 class="text-sm font-semibold text-slate-900">${group.label}</h3><span class="text-xs text-slate-500">${group.options.length} tag</span>`;
+        card.appendChild(title);
+
+        const chips = document.createElement('div');
+        chips.className = 'flex flex-wrap gap-2';
+
+        group.options.forEach((opt) => {
+          const button = document.createElement('button');
+          button.type = 'button';
+          button.dataset.filterGroup = group.id;
+          button.dataset.filterValue = opt.id;
+          button.className = 'select-none rounded-full border border-slate-200 px-3 py-1 text-sm text-slate-700 transition hover:border-primary hover:text-primary';
+          button.textContent = opt.label;
+          button.addEventListener('click', () => toggleFilter(group.id, opt.id, button));
+          chips.appendChild(button);
+        });
+
+        card.appendChild(chips);
+        container.appendChild(card);
+      });
+    }
+
+    function toggleFilter(groupId, value, button) {
+      const set = state.filters[groupId];
+      if (set.has(value)) {
+        set.delete(value);
+        button.classList.remove('bg-primary', 'text-white', 'border-primary', 'shadow');
+      } else {
+        set.add(value);
+        button.classList.add('bg-primary', 'text-white', 'border-primary', 'shadow');
+      }
+      renderDocuments();
+    }
+
+    function applyRules(doc) {
+      const { lavoro, tipo_mutuo, stato_civile, speciali } = state.filters;
+
+      const hasActiveFilters = (
+        lavoro.size || tipo_mutuo.size || stato_civile.size || speciali.size
+      );
+
+      const categories = {
+        lavoro: lavoro,
+        tipo_mutuo: tipo_mutuo,
+        stato_civile: stato_civile,
+        speciali: speciali,
+      };
+
+      // Base rule: if no filters at all, show every document
+      if (!hasActiveFilters) return true;
+
+      // Employment-specific logic
+      if (lavoro.has('piva') || lavoro.has('libero_professionista')) {
+        if (doc.tags.includes('dipendente_indeterminato') || doc.tags.includes('dipendente_determinato')) {
+          return false; // hide payslips etc for P.IVA
+        }
+      }
+
+      // If Consap selected, add guarantee module even if not tagged (handled by tag)
+
+      // For married in communion require spouse docs -> spouse docs already tagged with coniugato_comunione
+
+      // Filtering per group: if a group has active selections, doc must match at least one tag from that group when it has group-related tags.
+      const groupTagMapping = {
+        lavoro: ['dipendente_indeterminato', 'dipendente_determinato', 'piva', 'libero_professionista', 'pensionato'],
+        tipo_mutuo: ['acquisto', 'surroga', 'ristrutturazione', 'consolidamento'],
+        stato_civile: ['celibe', 'coniugato_comunione', 'coniugato_separazione', 'divorziato'],
+        speciali: ['consap', 'coobbligato', 'garante'],
+      };
+
+      for (const [groupKey, selected] of Object.entries(categories)) {
+        if (selected.size === 0) continue;
+        const relevantTags = groupTagMapping[groupKey];
+        const docHasGroupTag = doc.tags.some((tag) => relevantTags.includes(tag));
+        if (docHasGroupTag) {
+          const match = doc.tags.some((tag) => selected.has(tag));
+          if (!match) return false;
+        }
+      }
+
+      // If document has tags not part of any selected group, allow base visibility
+      return true;
+    }
+
+    function renderDocuments() {
+      const list = document.getElementById('documentList');
+      list.innerHTML = '';
+
+      const filtered = documents.filter(applyRules);
+      document.getElementById('count').textContent = `${filtered.length} documenti mostrati`; 
+
+      filtered.forEach((doc) => {
+        const item = document.createElement('div');
+        const isHighlighted = shouldHighlight(doc);
+        item.className = `flex items-start gap-3 py-4 ${isHighlighted ? 'bg-primary/5 px-3 -mx-3 rounded-lg' : ''}`;
+
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.className = 'mt-1 h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary';
+        checkbox.checked = state.completed.has(doc.id);
+        checkbox.addEventListener('change', () => toggleCompletion(doc.id, checkbox.checked));
+
+        const content = document.createElement('div');
+        const title = document.createElement('div');
+        title.className = 'flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-2';
+        title.innerHTML = `<span class="font-semibold text-slate-900">${doc.name}</span><span class="inline-flex text-xs rounded-full bg-slate-100 px-2 py-1 text-slate-600">${doc.category}</span>`;
+
+        const meta = document.createElement('p');
+        meta.className = 'text-sm text-slate-600';
+        meta.textContent = `Fonte: ${doc.source}`;
+
+        content.appendChild(title);
+        content.appendChild(meta);
+
+        item.appendChild(checkbox);
+        item.appendChild(content);
+        list.appendChild(item);
+      });
+    }
+
+    function shouldHighlight(doc) {
+      const { lavoro, tipo_mutuo, stato_civile, speciali } = state.filters;
+      const active = new Set([
+        ...lavoro,
+        ...tipo_mutuo,
+        ...stato_civile,
+        ...speciali,
+      ]);
+      if (active.size === 0) return false;
+      return doc.tags.some((tag) => active.has(tag));
+    }
+
+    function toggleCompletion(docId, done) {
+      if (done) {
+        state.completed.add(docId);
+      } else {
+        state.completed.delete(docId);
+      }
+    }
+
+    function exportChecklist() {
+      const filtered = documents.filter(applyRules);
+      const lines = [];
+      lines.push('Checklist Mutuo - Export');
+      lines.push(`Generata il: ${new Date().toLocaleString('it-IT')}`);
+      lines.push('');
+
+      filtered.forEach((doc, index) => {
+        const mark = state.completed.has(doc.id) ? '[x]' : '[ ]';
+        lines.push(`${index + 1}. ${mark} ${doc.name} — Categoria: ${doc.category} — Fonte: ${doc.source}`);
+      });
+
+      const blob = new Blob([lines.join('\n')], { type: 'text/plain;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'checklist-mutuo.txt';
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    document.getElementById('exportBtn').addEventListener('click', exportChecklist);
+
+    renderFilters();
+    renderDocuments();
+  </script>
+</body>
+</html>
